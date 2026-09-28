@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BugTrail - AI Bug Investigation Memory Agent</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="logo-icon">🐛🧠</div>
+        <div>
+          <h1 class="title">BugTrail</h1>
+          <p class="subtitle">AI Bug Investigation Memory Agent</p>
+        </div>
+      </div>
+      
+      <div class="header-badges">
+        <div id="ai-badge" class="badge badge-demo">
+          <span class="status-dot"></span>
+          <span id="ai-status-text">AI: Loading...</span>
+        </div>
+        <div id="hindsight-badge" class="badge badge-hindsight-off">
+          <span class="status-dot"></span>
+          <span id="hindsight-status-text">Hindsight: Checking...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- LEARNING LOOP VISUALIZER -->
+    <div class="learning-loop-card">
+      <div class="loop-title">🔄 HINDSIGHT AGENTIC LEARNING LOOP</div>
+      <div class="loop-steps">
+        <div class="loop-step" id="step-report">
+          <span class="step-num">1</span> Bug Report
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="loop-step" id="step-recall">
+          <span class="step-num">2</span> Recall Memory
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="loop-step" id="step-ai">
+          <span class="step-num">3</span> AI Investigation
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="loop-step" id="step-resolve">
+          <span class="step-num">4</span> Resolution
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="loop-step" id="step-retain">
+          <span class="step-num">5</span> Save Memory
+        </div>
+        <div class="step-arrow">➔</div>
+        <div class="loop-step highlight-step" id="step-better">
+          <span class="step-num">6</span> Better Next Bug Investigation!
+        </div>
+      </div>
+    </div>
+
+    <!-- DEMO CONTROLS BAR -->
+    <div class="demo-controls">
+      <span class="demo-label">⚡ Hackathon Demo Switcher:</span>
+      <button class="btn btn-demo" onclick="loadDemoBug(1)">Load Bug 1: Initial Deployment 500</button>
+      <button class="btn btn-demo" onclick="loadDemoBug(2)">Load Bug 2: Recurring 500 Error</button>
+      <button class="btn btn-outline" onclick="clearForm()">Reset Form</button>
+    </div>
+
+    <!-- MAIN GRID LAYOUT -->
+    <main class="dashboard-grid">
+      
+      <!-- SECTION A: NEW BUG INVESTIGATION -->
+      <section class="card section-investigate">
+        <div class="card-header">
+          <h2>🔍 New Bug Investigation</h2>
+          <span class="card-sub">Input failure details to initiate memory lookup and AI reasoning</span>
+        </div>
+        
+        <form id="investigate-form" onsubmit="handleInvestigate(event)">
+          <div class="form-group">
+            <label for="bug-title">Bug Title <span class="required">*</span></label>
+            <input type="text" id="bug-title" placeholder="e.g. API returns HTTP 500 after deployment" required>
+          </div>
+
+          <div class="form-group">
+            <label for="bug-desc">Bug Description</label>
+            <textarea id="bug-desc" rows="3" placeholder="Describe the behavior, impact, and observations..."></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col">
+              <label for="bug-env">Environment</label>
+              <input type="text" id="bug-env" value="Production">
+            </div>
+            <div class="form-group col">
+              <label for="bug-change">Recent Change / Deployment</label>
+              <input type="text" id="bug-change" placeholder="e.g. DB config modified during deploy">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="bug-logs">Error / Log Details</label>
+            <textarea id="bug-logs" rows="2" class="code-font" placeholder="e.g. Database connection failed. Timeout connecting to host..."></textarea>
+          </div>
+
+          <button type="submit" id="btn-investigate" class="btn btn-primary btn-block">
+            <span>Investigate Bug</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- SECTION B: INVESTIGATION RESULT -->
+      <section class="card section-result">
+        <div class="card-header">
+          <h2>💡 Investigation Result</h2>
+          <span id="memory-influenced-tag" class="tag tag-neutral">Awaiting Investigation</span>
+        </div>
+
+        <div id="investigation-empty" class="empty-state">
+          <div class="empty-icon">🔎</div>
+          <p>Submit a bug report above to generate AI investigation guidance with Hindsight memory recall.</p>
+        </div>
+
+        <div id="investigation-loading" class="loading-state hidden">
+          <div class="spinner"></div>
+          <p>Recalling Hindsight memories & analyzing bug pattern...</p>
+        </div>
+
+        <div id="investigation-content" class="result-content hidden">
+          
+          <div class="recommendation-box">
+            <div class="rec-label">🎯 Recommended First Check:</div>
+            <div id="rec-first-check" class="rec-value">...</div>
+            <div id="rec-why" class="rec-why-text">...</div>
+          </div>
+
+          <div class="info-block">
+            <div class="info-title">Probable Cause:</div>
+            <div id="rec-probable-cause" class="info-body">...</div>
+          </div>
+
+          <div class="info-block">
+            <div class="info-title">Recommended Step-by-Step Investigation:</div>
+            <ul id="rec-steps" class="steps-list"></ul>
+          </div>
+
+          <div class="meta-row">
+            <span class="meta-item">Confidence & Reasoning: <strong id="rec-confidence">...</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION C: MEMORY USED PANEL -->
+      <section class="card section-memory">
+        <div class="card-header">
+          <h2>🧠 Memory Used</h2>
+          <span class="card-sub">Recalled from Hindsight Memory Bank (<code class="code-tag">bugtrail-memory</code>)</span>
+        </div>
+
+        <div id="memory-list" class="memory-container">
+          <div class="empty-state">
+            <div class="empty-icon">💭</div>
+            <p>No memories recalled yet. Run an investigation to retrieve relevant past experiences from Hindsight.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION D: RESOLVE & TEACH AGENT -->
+      <section class="card section-resolve">
+        <div class="card-header">
+          <h2>🌱 Resolve & Teach Agent</h2>
+          <span class="card-sub">Store final bug resolution into Hindsight so the agent remembers next time</span>
+        </div>
+
+        <div id="resolve-alert" class="alert hidden"></div>
+
+        <form id="resolve-form" onsubmit="handleResolve(event)">
+          <div class="form-group">
+            <label for="res-title">Bug Title / Incident <span class="required">*</span></label>
+            <input type="text" id="res-title" placeholder="Incident title" required>
+          </div>
+
+          <div class="form-group">
+            <label for="res-cause">Root Cause <span class="required">*</span></label>
+            <input type="text" id="res-cause" placeholder="e.g. Incorrect database configuration after deployment." required>
+          </div>
+
+          <div class="form-group">
+            <label for="res-fix">Fix Applied <span class="required">*</span></label>
+            <input type="text" id="res-fix" placeholder="e.g. Restored the correct database configuration." required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col">
+              <label for="res-result">Result</label>
+              <input type="text" id="res-result" value="API recovered immediately.">
+            </div>
+            <div class="form-group col">
+              <label for="res-lesson">Additional Lesson</label>
+              <input type="text" id="res-lesson" placeholder="e.g. Check database config first after deploy 500s.">
+            </div>
+          </div>
+
+          <button type="submit" id="btn-resolve" class="btn btn-success btn-block">
+            <span>💾 Save Resolution to Memory (Hindsight Retain)</span>
+          </button>
+        </form>
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>BugTrail Hackathon MVP • Powered by <strong>FastAPI</strong>, <strong>Hindsight Cloud SDK</strong>, & <strong>Gemini AI</strong></p>
+    </footer>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
