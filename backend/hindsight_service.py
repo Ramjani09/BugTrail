@@ -15,6 +15,7 @@ class HindsightService:
         self.api_key = ""
         self.client = None
         self._connected = False
+        self._demo_memory_store: List[MemoryItem] = []
         self._reload_and_init()
 
     def _reload_and_init(self):
@@ -24,7 +25,7 @@ class HindsightService:
 
         self.api_key = os.environ.get("HINDSIGHT_API_KEY", "").strip()
         if not self.api_key:
-            logger.info("HINDSIGHT_API_KEY is not configured in .env. Hindsight running in disconnected state.")
+            logger.info("HINDSIGHT_API_KEY is not configured in .env. Hindsight running in local fallback memory mode.")
             self._connected = False
             self.client = None
             return
@@ -65,7 +66,6 @@ class HindsightService:
             self._connected = True
         except Exception as e:
             err_str = str(e).lower()
-            # If bank already exists (409 conflict), connection is valid and bank is ready
             if "already exists" in err_str or "409" in err_str or "conflict" in err_str:
                 logger.info(f"Memory bank '{MEMORY_BANK_ID}' already exists and is connected.")
                 self._connected = True
@@ -74,9 +74,6 @@ class HindsightService:
                 self._connected = False
 
     def retain_resolution(self, resolution: BugResolution) -> Tuple[bool, str]:
-        if not self.is_connected():
-            return False, "Hindsight API key not configured or connection failed. Resolution not retained to Hindsight."
-
         content_str = (
             f"[BUG INCIDENT]: {resolution.bug_title}\n"
             f"[ROOT CAUSE]: {resolution.root_cause}\n"
@@ -85,45 +82,65 @@ class HindsightService:
             f"[ADDITIONAL LESSON]: {resolution.additional_lesson}"
         )
 
-        try:
-            res = self.client.retain(
-                bank_id=MEMORY_BANK_ID,
-                content=content_str,
-                metadata={
-                    "type": "bug_resolution",
-                    "title": resolution.bug_title
-                }
-            )
-            logger.info(f"Successfully retained resolution to Hindsight bank '{MEMORY_BANK_ID}': {res}")
-            return True, "✓ Bug experience saved to Hindsight memory"
-        except Exception as e:
-            logger.error(f"Error retaining resolution to Hindsight: {e}")
-            return False, f"Failed to save resolution to Hindsight: {str(e)}"
+        # 1. Store in real Hindsight Cloud if key is configured
+        if self.is_connected():
+            try:
+                res = self.client.retain(
+                    bank_id=MEMORY_BANK_ID,
+                    content=content_str,
+                    metadata={
+                        "type": "bug_resolution",
+                        "title": resolution.bug_title
+                    }
+                )
+                logger.info(f"Successfully retained resolution to Hindsight bank '{MEMORY_BANK_ID}': {res}")
+                return True, "✓ Bug experience saved to Hindsight Cloud memory"
+            except Exception as e:
+                logger.error(f"Error retaining resolution to Hindsight: {e}")
+                return False, f"Failed to save resolution to Hindsight: {str(e)}"
+
+        # 2. Local session memory fallback if HINDSIGHT_API_KEY is not configured
+        mem_item = MemoryItem(
+            incident=resolution.bug_title,
+            root_cause=resolution.root_cause,
+            fix=resolution.fix_applied,
+            context=f"{resolution.result} {resolution.additional_lesson}".strip()
+        )
+        # Prevent duplicates in demo store
+        if not any(m.incident == mem_item.incident for m in self._demo_memory_store):
+            self._demo_memory_store.append(mem_item)
+            
+        return True, "✓ Bug experience saved to memory (Session Demo Store)"
 
     def recall_memories(self, query: str) -> List[MemoryItem]:
-        if not self.is_connected():
-            return []
+        # 1. Query real Hindsight Cloud if key is configured
+        if self.is_connected():
+            try:
+                res = self.client.recall(
+                    bank_id=MEMORY_BANK_ID,
+                    query=query,
+                    budget="mid"
+                )
 
-        try:
-            res = self.client.recall(
-                bank_id=MEMORY_BANK_ID,
-                query=query,
-                budget="mid"
-            )
+                memories: List[MemoryItem] = []
+                if hasattr(res, 'results') and res.results:
+                    for item in res.results:
+                        text_content = getattr(item, 'text', '') or ''
+                        context_content = getattr(item, 'context', '') or ''
+                        metadata = getattr(item, 'metadata', {}) or {}
+                        if text_content:
+                            mem_item = self._parse_memory_text(text_content, context_content, metadata)
+                            memories.append(mem_item)
+                return memories
+            except Exception as e:
+                logger.error(f"Error recalling memories from Hindsight: {e}")
+                return []
 
-            memories: List[MemoryItem] = []
-            if hasattr(res, 'results') and res.results:
-                for item in res.results:
-                    text_content = getattr(item, 'text', '') or ''
-                    context_content = getattr(item, 'context', '') or ''
-                    metadata = getattr(item, 'metadata', {}) or {}
-                    if text_content:
-                        mem_item = self._parse_memory_text(text_content, context_content, metadata)
-                        memories.append(mem_item)
-            return memories
-        except Exception as e:
-            logger.error(f"Error recalling memories from Hindsight: {e}")
-            return []
+        # 2. Local session memory fallback if HINDSIGHT_API_KEY is not configured
+        if self._demo_memory_store:
+            return list(self._demo_memory_store)
+
+        return []
 
     def _parse_memory_text(self, text: str, default_context: str = "", metadata: dict = None) -> MemoryItem:
         incident = "Past Bug Incident"
